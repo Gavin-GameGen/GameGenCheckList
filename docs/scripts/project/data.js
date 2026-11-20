@@ -225,6 +225,15 @@ function pinsFromMock(users) {
 const byRoleThenName = (a, b) =>
   ROLES.indexOf(b.role) - ROLES.indexOf(a.role) || a.display_name.localeCompare(b.display_name);
 
+// ---------------------------------------------------------------- mock event
+const MOCK_EVENT_KEY = "checkin:mock:event";
+function readMockEvent() {
+  try { return JSON.parse(localStorage.getItem(MOCK_EVENT_KEY) ?? "null"); } catch { return null; }
+}
+function writeMockEvent(e) {
+  try { localStorage.setItem(MOCK_EVENT_KEY, JSON.stringify(e)); } catch {}
+}
+
 // ---------------------------------------------------------------- mock
 const mock = {
   users: structuredClone(MOCK_USERS),
@@ -508,7 +517,39 @@ const mock = {
     return this.tenAm();
   },
 
+  // events (eventsystem.js). The running event is kept in this browser's
+  // localStorage rather than in memory, so a mentor tab and a student tab
+  // open side by side in mock mode see the same event.
+  //   -> { event_id, name, seconds_left, started_by_name } or null
+  async getCurrentEvent() {
+    this._requireRole("student", ...MENTOR_ROLES);
+    const e = readMockEvent();
+    if (!e || e.cancelled || e.endsAt <= Date.now()) return null;
+    return {
+      event_id: e.id,
+      name: e.name,
+      seconds_left: Math.ceil((e.endsAt - Date.now()) / 1000),
+      started_by_name: e.startedBy
+    };
+  },
+  async startEvent(name, minutes) {
+    const me = this._requireRole(...MENTOR_ROLES);
+    const n = String(name ?? "").trim();
+    const m = Number(minutes);
+    if (!n) throw new Error("Give the event a name");
+    if (n.length > 60) throw new Error("Event names can be at most 60 characters");
+    if (!Number.isInteger(m) || m < 1 || m > 480) throw new Error("Duration must be between 1 and 480 minutes");
+    writeMockEvent({ id: Date.now(), name: n, endsAt: Date.now() + m * 60000, startedBy: me.display_name, cancelled: false });
+    return this.getCurrentEvent();
+  },
+  async cancelEvent(eventId) {
+    this._requireRole(...MENTOR_ROLES);
+    const e = readMockEvent();
+    if (e && e.id === eventId) writeMockEvent({ ...e, cancelled: true });
+  },
+
   reset() {
+    try { localStorage.removeItem(MOCK_EVENT_KEY); } catch {}
     this.users = structuredClone(MOCK_USERS);
     this.assignments = assignmentsFromUsers(MOCK_USERS);
     this.items = structuredClone(MOCK_ITEMS);
@@ -688,6 +729,20 @@ const supabaseApi = {
   },
   async unpinStudent(studentId) {
     check(await client().rpc("unpin_student", { p_student_id: studentId }));
+  },
+
+  // events (eventsystem.js, events.sql)
+  //   -> { event_id, name, seconds_left, started_by_name } or null
+  async getCurrentEvent() {
+    const rows = check(await client().rpc("get_current_event"));
+    return rows?.[0] ?? null;
+  },
+  async startEvent(name, minutes) {
+    const rows = check(await client().rpc("start_event", { p_name: name, p_minutes: Number(minutes) }));
+    return rows?.[0] ?? null;
+  },
+  async cancelEvent(eventId) {
+    check(await client().rpc("cancel_event", { p_event_id: eventId }));
   }
 };
 

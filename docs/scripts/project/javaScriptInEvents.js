@@ -12,6 +12,7 @@ import { orderAdminUsers, reorderAdminUsers, decorateAdminRows, resetAdminSearch
 import { initViewSwitch, switchViewFromTap } from "./viewswitch.js";
 import { bootSignedIn } from "./boot.js";
 import { loadStudentIdentity } from "./identity.js";
+import { initEventBox, destroyEventBox, tapEventBox, openEventBox, closeEventBox, isEventBoxOpen, initStudentEvent, EVENTS } from "./eventsystem.js";
 
 
 const scriptsInEvents = {
@@ -97,6 +98,11 @@ const scriptsInEvents = {
 		// Show the user's Discord picture (SSpriteAvatar) and username (STextStudentName).
 		// Not awaited, so the checklist doesn't wait on the picture download.
 		loadStudentIdentity(runtime);
+		
+		// Events (eventsystem.js): SSpriteEvent and STextEventInfo stay hidden until
+		// a mentor starts an event, then show its name and a countdown until it
+		// runs out or is cancelled.
+		initStudentEvent(runtime, { sprite: "SSpriteEvent", text: "STextEventInfo" });
 	},
 
 	async Studentlogic_Event6(runtime, localVars)
@@ -115,7 +121,8 @@ const scriptsInEvents = {
 		  layer: "Popup",
 		  names: "MTextStudentName",
 		  idOf:  name => name.instVars.studentId,   // "" on the Student heading
-		  describe: describeStudent
+		  describe: describeStudent,
+		  onOpen:   closeEventBox    // the Event panel slides away when Details opens
 		});
 		
 		// The search bar (studentsearch.js). Type a name to get a drop-down of
@@ -137,6 +144,11 @@ const scriptsInEvents = {
 		// click the track. It only appears when there is something to scroll.
 		initMentorScroll(runtime);
 		
+		// The Event panel (eventsystem.js): tap the "^" tab in the bottom-right
+		// corner to slide MSpriteEventBoxBG up. Name the event, pick how long it
+		// runs, press Start, and every student sees it until it ends or is cancelled.
+		initEventBox(runtime, { box: "MSpriteEventBoxBG" });
+		
 		// Draws the whole view: a heading per checklist item, a row for every
 		// student assigned to this mentor, a checkbox under each column, and a
 		// Submit button at the end of the row.
@@ -148,6 +160,9 @@ const scriptsInEvents = {
 		// The search box is a real HTML text box on the page, so it has to be
 		// taken off again or it would sit over the next layout.
 		destroyStudentSearch();
+		
+		// Same for the Event panel's fields and buttons.
+		destroyEventBox();
 	},
 
 	async Mentorlogic_Event6(runtime, localVars)
@@ -188,11 +203,16 @@ const scriptsInEvents = {
 
 	async Mentorlogic_Event20(runtime, localVars)
 	{
+		tapEventBox(runtime.globalVars.MDetailTapX, runtime.globalVars.MDetailTapY);
+	},
+
+	async Mentorlogic_Event22(runtime, localVars)
+	{
 		// Slides the Details panel a frame's worth.
 		stepDetailBox(runtime.dt);
 	},
 
-	async Mentorlogic_Event22(runtime, localVars)
+	async Mentorlogic_Event24(runtime, localVars)
 	{
 		tapDetailText(runtime);
 	},

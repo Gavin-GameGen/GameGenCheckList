@@ -30,6 +30,7 @@ import { refreshDetailBox, isUnderDetailBox, selectStudentFromTap } from "./deta
 import { refreshStudentSearch, isUnderStudentSearch, isStudentSearchInstance } from "./studentsearch.js";
 import { initScroller, refreshScroller } from "./scroll.js";
 import { itemsForToday } from "./schedule.js";
+import { isUnderEventBox } from "./eventsystem.js";
 
 // ---------------------------------------------------------------- layout
 // Everything about where the grid sits on screen is in this one block.
@@ -264,7 +265,7 @@ export async function submitFromTap(runtime, from = "MButtonSubmit") {
 // name is hidden under the open search drop-down.
 export function selectNameFromTap(runtime) {
 	const name = runtime.objects.MTextStudentName.getFirstPickedInstance();
-	if (!name || !name.isVisible || isUnderStudentSearch(name)) return;
+	if (!name || !name.isVisible || isUnderStudentSearch(name) || isUnderEventBox(name)) return;
 	selectStudentFromTap(runtime);
 }
 
@@ -577,13 +578,13 @@ function restoreUnsaved(unsaved) {
 
 // ---------------------------------------------------------------- helpers
 
-// Hidden behind the Details panel or the search drop-down. Construct's "On
+// Hidden behind the Details panel, the Event panel or the search drop-down. Construct's "On
 // tap object" fires for every object under the finger, so the things
 // underneath have to ignore the tap themselves.
 // A row scrolled out of the band is hidden but still there, so it counts
 // as covered too.
 function isCovered(inst) {
-	return !inst.isVisible || isUnderDetailBox(inst) || isUnderStudentSearch(inst);
+	return !inst.isVisible || isUnderDetailBox(inst) || isUnderStudentSearch(inst) || isUnderEventBox(inst);
 }
 
 function columnX(column) {
